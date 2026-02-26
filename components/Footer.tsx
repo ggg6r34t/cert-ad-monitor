@@ -6,18 +6,17 @@ export default function Footer() {
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 text-xs text-slate-400">
         <p>CERT Ad Monitor (Internal Tool)</p>
         <nav className="flex items-center gap-4">
+          <Link href="/terms" className="hover:text-white">
+            Terms
+          </Link>
           <Link href="/privacy" className="hover:text-white">
             Privacy
           </Link>
           <Link href="/data-deletion" className="hover:text-white">
             Data Deletion
           </Link>
-          <Link href="/terms" className="hover:text-white">
-            Terms
-          </Link>
         </nav>
       </div>
     </footer>
   );
 }
-
