@@ -11,7 +11,6 @@ interface Props {
 export default function Header({ dangerCount }: Props) {
   const pathname = usePathname();
   const onSettingsPage = pathname === "/settings";
-  const onPrivacyPage = pathname === "/privacy";
 
   return (
     <div className="bg-slate-900 border-b border-slate-800">
@@ -31,16 +30,6 @@ export default function Header({ dangerCount }: Props) {
         </Link>
 
         <div className="flex items-center gap-3">
-          <Link
-            href="/privacy"
-            className={`rounded-lg px-3 py-2 text-xs transition-colors ${
-              onPrivacyPage
-                ? "text-white"
-                : "text-slate-400 hover:bg-slate-800 hover:text-white"
-            }`}
-          >
-            Privacy
-          </Link>
           {dangerCount > 0 && (
             <span className="relative flex items-center">
               <Bell size={18} className="text-red-400" />

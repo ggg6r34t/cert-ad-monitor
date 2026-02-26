@@ -266,7 +266,7 @@ export default function PrivacyPage() {
                 15. Contact
               </h2>
               <p>Owner: Internal CERT Tool Maintainer</p>
-              <p>Email: licoln.cly@gmail.com</p>
+              <p>Email: lincoln.cly@gmail.com</p>
               <p>
                 This application is an internal tool and is not operated as a
                 public commercial service.
