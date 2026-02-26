@@ -1,36 +1,90 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CERT Ad Monitor
 
-## Getting Started
+Monitor Meta Ad Library campaigns for impersonation, scam, and abuse signals across client brands.
 
-First, run the development server:
+## Tech Stack
+
+- Next.js 16 (App Router)
+- React 19 + TypeScript
+- Tailwind CSS 4
+- shadcn/ui + Radix UI
+
+## Prerequisites
+
+- Node.js 20+
+- npm 10+
+
+## Local Setup
+
+1. Install dependencies:
+
+```bash
+npm install
+```
+
+2. (Optional) Configure environment variables:
+
+```bash
+cp .env.example .env.local
+```
+
+3. Run development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+App runs at `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment Variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+See [`.env.example`](./.env.example).
 
-## Learn More
+- `META_AD_LIBRARY_TOKEN` (optional): default token for `/api/ads`
+- `PORT` (optional): used in Docker and production runtime
 
-To learn more about Next.js, take a look at the following resources:
+Note: token can also be entered in-app via Settings and persisted in browser storage.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Docker
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Use Docker Compose:
 
-## Deploy on Vercel
+```bash
+cp .env.example .env
+docker compose up -d --build
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Stop services:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+docker compose down
+```
+
+## Available Scripts
+
+- `npm run dev` - start dev server
+- `npm run build` - build for production
+- `npm run start` - run production server
+- `npm run lint` - run ESLint
+
+## Before Pushing to GitHub
+
+1. Confirm secrets are not tracked:
+   - `.env*` files are ignored (except `.env.example`).
+   - Do not commit real API tokens.
+2. Validate project locally:
+   - `npm run lint`
+   - `npm run build`
+3. Commit with clear message.
+4. Push to remote branch and open PR.
+
+## Initial GitHub Push (if repo is new)
+
+```bash
+git init
+git add .
+git commit -m "Initial commit"
+git branch -M main
+git remote add origin <your-repo-url>
+git push -u origin main
+```
