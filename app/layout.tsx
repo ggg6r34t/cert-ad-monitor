@@ -1,11 +1,11 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "CERT Ad Monitor — Meta Ad Fraud Detection",
+  title: "CERT Ad Monitor - Meta Ad Fraud Detection",
   description:
     "Scan the Meta Ad Library for fraudulent, impersonation, and scam ads targeting your clients. Built for CERT teams.",
 };

@@ -1,0 +1,18 @@
+{
+  "clients": {},
+  "runs": [],
+  "lock": null,
+  "alertPolicy": {
+    "channels": {
+      "slack": true,
+      "telegram": false
+    },
+    "minNewFlaggedForAlert": 3,
+    "quietHoursUtc": {
+      "enabled": true,
+      "startHour": 1,
+      "endHour": 7
+    }
+  },
+  "updatedAt": "2026-02-26T16:24:41.881Z"
+}

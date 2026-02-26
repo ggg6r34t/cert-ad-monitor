@@ -1,22 +1,28 @@
-import type { MetaAd, Client, AnalysisResult, Risk, ThreatLevel, RiskCategory } from "@/types";
+﻿import type { MetaAd, Client, AnalysisResult, Risk, ThreatLevel } from "@/types";
 
-// ── String Distance ──
+// String distance
 
 function levenshtein(a: string, b: string): number {
-  const m = a.length, n = b.length;
+  const m = a.length;
+  const n = b.length;
   const d: number[][] = Array.from({ length: m + 1 }, (_, i) => {
     const row = new Array(n + 1).fill(0);
     row[0] = i;
     return row;
   });
+
   for (let j = 1; j <= n; j++) d[0][j] = j;
-  for (let i = 1; i <= m; i++)
-    for (let j = 1; j <= n; j++)
+
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
       d[i][j] = Math.min(
         d[i - 1][j] + 1,
         d[i][j - 1] + 1,
         d[i - 1][j - 1] + (a[i - 1] !== b[j - 1] ? 1 : 0)
       );
+    }
+  }
+
   return d[m][n];
 }
 
@@ -36,7 +42,7 @@ export function extractDomain(url: string): string {
   }
 }
 
-// ── Scam Signal Definitions ──
+// Scam signal definitions
 
 interface ScamSignal {
   pattern: RegExp;
@@ -47,7 +53,7 @@ interface ScamSignal {
 const SCAM_SIGNALS: ScamSignal[] = [
   { pattern: /free\s*(gift|money|iphone|crypto|bitcoin|token|nft)/i, weight: 4, label: "Free gift / crypto lure" },
   { pattern: /(limited\s*time|act\s*now|hurry|don'?t\s*miss|last\s*chance|ending\s*soon)/i, weight: 2, label: "Urgency / pressure tactics" },
-  { pattern: /(verify|confirm|validate)\s*(your|account|identity|email)/i, weight: 5, label: "Phishing — credential harvesting" },
+  { pattern: /(verify|confirm|validate)\s*(your|account|identity|email)/i, weight: 5, label: "Phishing - credential harvesting" },
   { pattern: /(earn|make|get)\s*\$?\d+.*?(day|hour|week|month)/i, weight: 3, label: "Get-rich-quick scheme" },
   { pattern: /bit\.ly|tinyurl|t\.co|shorturl|is\.gd|rb\.gy/i, weight: 3, label: "URL shortener hiding destination" },
   { pattern: /(login|log\s*in|signin|sign\s*in|password|credential)/i, weight: 4, label: "Login / credential language" },
@@ -68,7 +74,7 @@ const SUSPICIOUS_TLDS = [
   ".date", ".review", ".trade",
 ];
 
-// ── Main Analysis Function ──
+// Main analysis function
 
 export function analyzeAd(ad: MetaAd, client: Client): AnalysisResult {
   const risks: Risk[] = [];
@@ -85,14 +91,17 @@ export function analyzeAd(ad: MetaAd, client: Client): AnalysisResult {
   const clientName = client.name.toLowerCase();
 
   const officialDomains = client.domains
-    .split(",").map((d) => d.trim().toLowerCase()).filter(Boolean);
+    .split(",")
+    .map((d) => d.trim().toLowerCase())
+    .filter(Boolean);
 
   const brandTerms = client.brandTerms
-    .split(",").map((k) => k.trim().toLowerCase()).filter(Boolean);
+    .split(",")
+    .map((k) => k.trim().toLowerCase())
+    .filter(Boolean);
   brandTerms.push(clientName);
 
-  // ── 1. Page Name Impersonation ──
-
+  // 1) Page name impersonation
   if (adPage && clientName) {
     if (adPage === clientName) {
       score += 2;
@@ -105,10 +114,7 @@ export function analyzeAd(ad: MetaAd, client: Client): AnalysisResult {
         category: "impersonation",
       });
     } else {
-      const sim = domainSimilarity(
-        adPage.replace(/\s/g, ""),
-        clientName.replace(/\s/g, "")
-      );
+      const sim = domainSimilarity(adPage.replace(/\s/g, ""), clientName.replace(/\s/g, ""));
       if (sim > 0.75) {
         score += 3;
         risks.push({
@@ -120,8 +126,7 @@ export function analyzeAd(ad: MetaAd, client: Client): AnalysisResult {
     }
   }
 
-  // ── 2. Brand Terms in Ad Copy ──
-
+  // 2) Brand terms in ad copy
   const hits = brandTerms.filter((bt) => bt.length >= 3 && text.includes(bt));
   if (hits.length > 0) {
     const w = Math.min(hits.length, 2);
@@ -133,13 +138,10 @@ export function analyzeAd(ad: MetaAd, client: Client): AnalysisResult {
     });
   }
 
-  // ── 3. Domain Analysis ──
-
+  // 3) Domain analysis
   for (const url of urls) {
     const dom = extractDomain(url);
-    const isOfficial = officialDomains.some(
-      (od) => dom === od || dom.endsWith(`.${od}`)
-    );
+    const isOfficial = officialDomains.some((od) => dom === od || dom.endsWith(`.${od}`));
 
     if (isOfficial) {
       score -= 2;
@@ -147,7 +149,6 @@ export function analyzeAd(ad: MetaAd, client: Client): AnalysisResult {
       continue;
     }
 
-    // Typosquatting check
     for (const od of officialDomains) {
       const sim = domainSimilarity(dom, od);
       if (sim > 0.55 && sim < 1) {
@@ -162,22 +163,20 @@ export function analyzeAd(ad: MetaAd, client: Client): AnalysisResult {
       if (baseName.length >= 3 && dom !== od && dom.includes(baseName)) {
         score += 3;
         risks.push({
-          label: `"${dom}" contains brand name but isn't official`,
+          label: `"${dom}" contains brand name but is not official`,
           weight: 3,
           category: "typosquat",
         });
       }
     }
 
-    // Suspicious TLD
     if (SUSPICIOUS_TLDS.some((tld) => dom.endsWith(tld))) {
       score += 2;
       risks.push({ label: `Suspicious TLD: ${dom}`, weight: 2, category: "infrastructure" });
     }
   }
 
-  // ── 4. Scam Signal Matching ──
-
+  // 4) Scam signal matching
   const fullText = `${text} ${urls.join(" ")}`;
   for (const sig of SCAM_SIGNALS) {
     if (sig.pattern.test(fullText)) {
@@ -186,8 +185,7 @@ export function analyzeAd(ad: MetaAd, client: Client): AnalysisResult {
     }
   }
 
-  // ── 5. Missing URL ──
-
+  // 5) Missing URL
   if (urls.length === 0 && text.length > 20) {
     score += 1;
     risks.push({ label: "No visible destination URL", weight: 1, category: "suspicious" });

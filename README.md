@@ -40,10 +40,25 @@ App runs at `http://localhost:3000`.
 
 See [`.env.example`](./.env.example).
 
-- `META_AD_LIBRARY_TOKEN` (optional): default token for `/api/ads`
+- `META_AD_LIBRARY_TOKEN`: token for Meta Ad Library API calls
+- `APP_ENCRYPTION_KEY`: 32-byte base64 key for encrypted server-side token storage
 - `PORT` (optional): used in Docker and production runtime
+- `AUTO_SCAN_ENABLED`: set `true` to enable recurring scheduled scans
+- `AUTO_SCAN_INTERVAL_MINUTES`: scan interval (default `30`)
+- `AUTO_SCAN_MAX_PAGES`: max paginated pages per client scan (default `3`)
+- `AUTO_SCAN_MAX_QUERIES`: max brand queries per client per automation cycle (default `8`)
+- `INTERNAL_API_KEY`: required header key for automation endpoints (`x-internal-api-key`)
+- `SCAN_QUEUE_CONCURRENCY`: concurrent queued scan jobs (default `2`)
+- `SCAN_QUEUE_MIN_INTERVAL_MS`: minimum delay between queued job starts (default `0`)
+- `META_CIRCUIT_BREAKER_FAILURES`: failures before Meta circuit breaker opens (default `5`)
+- `META_CIRCUIT_BREAKER_COOLDOWN_MS`: breaker cooldown duration (default `90000`)
+- `SLACK_WEBHOOK_URL`: Slack incoming webhook for alert messages
+- `TELEGRAM_BOT_TOKEN`: Telegram bot token for alert messages
+- `TELEGRAM_CHAT_ID`: Telegram chat ID to receive alerts
 
-Note: token can also be entered in-app via Settings and persisted in browser storage.
+The token is server-side only. Browser token entry/storage has been removed.
+If the token is missing, scans run in demo mode.
+You can now save token securely via Settings (encrypted at rest) if `APP_ENCRYPTION_KEY` is set.
 
 ## Docker
 
@@ -66,6 +81,59 @@ docker compose down
 - `npm run build` - build for production
 - `npm run start` - run production server
 - `npm run lint` - run ESLint
+- `npm run typecheck` - run TypeScript checks
+- `npm run test` - run lightweight internal test suite
+- `npm run ci` - run lint, typecheck, tests, and production build
+
+## Internal Persistence
+
+- Clients and triage state are persisted server-side at `APP_DATA_DIR/state.json` (defaults to `./data/state.json`).
+- `docker-compose.yml` mounts a named volume at `/app/data` for persistence across restarts.
+
+## Health Endpoint
+
+- `GET /api/health` returns:
+  - token configuration status
+  - internal API key configuration status
+  - notifier configuration status (Slack/Telegram)
+  - automation runtime status
+  - datastore health (writable path)
+  - service timestamp
+
+## Automation Endpoints
+
+- `POST /api/automation/run`: trigger one immediate scan cycle for all configured clients
+- `GET /api/automation/status`: scheduler runtime status (enabled/running/last run/queue size)
+- `GET /api/automation/policy`: read alert routing policy
+- `PUT /api/automation/policy`: update alert routing policy (channel enablement, threshold, quiet hours)
+
+Both automation endpoints require header:
+
+```text
+x-internal-api-key: <INTERNAL_API_KEY>
+```
+
+## State Backup and Restore
+
+Use internal-key protected endpoints:
+
+- `GET /api/state/backup`: export current persisted client/triage state
+- `POST /api/state/backup`: restore state from provided payload
+
+Header required:
+
+```text
+x-internal-api-key: <INTERNAL_API_KEY>
+```
+
+## Scan History
+
+- `GET /api/scan-history?clientId=<id>&limit=20`: fetch recent client scan snapshots
+- `POST /api/scan-history`: append scan snapshot (used by manual and automation flows)
+
+## Operations Runbook
+
+See [docs/OPERATIONS_RUNBOOK.md](./docs/OPERATIONS_RUNBOOK.md) for production operations and recovery procedures.
 
 ## Before Pushing to GitHub
 
@@ -74,6 +142,8 @@ docker compose down
    - Do not commit real API tokens.
 2. Validate project locally:
    - `npm run lint`
+   - `npm run typecheck`
+   - `npm run test`
    - `npm run build`
 3. Commit with clear message.
 4. Push to remote branch and open PR.

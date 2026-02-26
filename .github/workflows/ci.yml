@@ -7,7 +7,7 @@ on:
     branches: ["main", "master"]
 
 jobs:
-  lint-and-build:
+  quality-gates:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -24,6 +24,12 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm run test
 
       - name: Build
         run: npm run build

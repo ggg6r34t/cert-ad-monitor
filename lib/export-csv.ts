@@ -1,7 +1,9 @@
 import type { ScanResult } from "@/types";
 
-function escapeCSV(value: string): string {
-  const cleaned = value.replace(/"/g, "'").replace(/[\n\r]/g, " ");
+export function escapeCSV(value: string): string {
+  let cleaned = value.replace(/"/g, "'").replace(/[\n\r]/g, " ");
+  // Prevent spreadsheet formula execution on open.
+  if (/^[=+\-@]/.test(cleaned)) cleaned = `'${cleaned}`;
   return `"${cleaned}"`;
 }
 

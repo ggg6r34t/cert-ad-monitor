@@ -2,6 +2,13 @@
 
 import { useState } from "react";
 import type { Client } from "@/types";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const COUNTRIES = [
   { code: "ALL", name: "All Countries" },
@@ -98,15 +105,18 @@ export default function ClientForm({ initial, onSave, onCancel }: Props) {
 
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">Target Country</label>
-          <select
-            className={inputCls}
-            value={country}
-            onChange={(e) => setCountry(e.target.value)}
-          >
-            {COUNTRIES.map((c) => (
-              <option key={c.code} value={c.code}>{c.name}</option>
-            ))}
-          </select>
+          <Select value={country} onValueChange={setCountry}>
+            <SelectTrigger className={inputCls}>
+              <SelectValue placeholder="Select country" />
+            </SelectTrigger>
+            <SelectContent>
+              {COUNTRIES.map((c) => (
+                <SelectItem key={c.code} value={c.code}>
+                  {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div>

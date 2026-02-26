@@ -1,15 +1,15 @@
-// ── Client Configuration ──
+﻿// Client configuration
 
 export interface Client {
   id: string;
   name: string;
-  domains: string;       // comma-separated official domains
-  brandTerms: string;    // comma-separated brand keywords
-  country: string;       // ISO country code or "ALL"
+  domains: string; // comma-separated official domains
+  brandTerms: string; // comma-separated brand keywords
+  country: string; // ISO country code or "ALL"
   notes: string;
 }
 
-// ── Meta Ad Library API response shapes ──
+// Meta Ad Library API response shapes
 
 export interface MetaAdImpression {
   lower_bound: string;
@@ -38,7 +38,7 @@ export interface MetaAd {
   spend?: MetaAdSpend;
 }
 
-// ── Analysis Engine ──
+// Analysis engine
 
 export type ThreatLevel = "critical" | "high" | "medium" | "low" | "info";
 
@@ -67,15 +67,13 @@ export interface AnalyzedAd {
   analysis: AnalysisResult;
 }
 
-// ── Scan Results ──
+// Scan results
 
 export interface ScanStats {
   total: number;
-  critical: number;
-  high: number;
-  medium: number;
   active: number;
-  threats: number;    // critical + high
+  inactive: number;
+  startedLast7d: number;
 }
 
 export interface ScanResult {
@@ -84,9 +82,15 @@ export interface ScanResult {
   isDemo: boolean;
   timestamp: string;
   stats: ScanStats;
+  changeSummary?: {
+    previousScanAt?: string;
+    newActive: number;
+    resolvedActive: number;
+    newFlagged: number;
+  };
 }
 
-// ── Triage ──
+// Triage
 
 export type TriageStatus =
   | "new"
@@ -94,7 +98,8 @@ export type TriageStatus =
   | "confirmed_fraud"
   | "reported"
   | "false_positive"
-  | "resolved";
+  | "resolved"
+  | "suppressed";
 
 export interface TriageOption {
   value: TriageStatus;
@@ -102,7 +107,7 @@ export interface TriageOption {
   className: string;
 }
 
-// ── Alerts ──
+// Alerts
 
 export type AlertType = "danger" | "error" | "info";
 
@@ -113,7 +118,7 @@ export interface Alert {
   time: string;
 }
 
-// ── API Route ──
+// API route
 
 export interface AdsApiResponse {
   ads?: MetaAd[];
@@ -126,6 +131,6 @@ export interface FetchAdsResult {
   isDemo: boolean;
 }
 
-// ── Filter ──
+// Filter
 
-export type FilterKey = "all" | "threats" | "medium" | "active";
+export type FilterKey = "all" | "active" | "inactive" | "recent";

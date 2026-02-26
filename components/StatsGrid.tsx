@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, Activity, XCircle, ShieldAlert, AlertTriangle } from "lucide-react";
+import { Eye, Activity, CalendarClock, PauseCircle } from "lucide-react";
 import type { ScanStats } from "@/types";
 
 function Stat({
@@ -23,12 +23,11 @@ function Stat({
 
 export default function StatsGrid({ stats }: { stats: ScanStats }) {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-5">
+    <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
       <Stat Icon={Eye} label="Ads Found" value={stats.total} color="text-slate-400" />
       <Stat Icon={Activity} label="Active" value={stats.active} color="text-emerald-600" />
-      <Stat Icon={XCircle} label="Critical" value={stats.critical} color="text-red-600" />
-      <Stat Icon={ShieldAlert} label="High" value={stats.high} color="text-orange-600" />
-      <Stat Icon={AlertTriangle} label="Medium" value={stats.medium} color="text-amber-600" />
+      <Stat Icon={PauseCircle} label="Inactive" value={stats.inactive} color="text-slate-500" />
+      <Stat Icon={CalendarClock} label="Started Last 7d" value={stats.startedLast7d} color="text-blue-600" />
     </div>
   );
 }
