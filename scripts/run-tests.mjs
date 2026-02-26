@@ -101,6 +101,7 @@ function resetTestDataDir() {
   fs.mkdirSync(testDataDir, { recursive: true });
   process.env.APP_DATA_DIR = testDataDir;
   delete process.env.META_AD_LIBRARY_TOKEN;
+  delete process.env.INTERNAL_API_KEY;
 }
 
 function createJsonRequest(url, method, body, headers = {}) {

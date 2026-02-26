@@ -4,12 +4,16 @@ import {
   getClientScanHistory,
   type ClientScanSnapshot,
 } from "@/lib/server/scanHistoryStore";
+import { maybeRequireInternalApiKey } from "@/lib/server/internalGuard";
 
 interface AppendBody extends Omit<ClientScanSnapshot, "scannedAt"> {
   scannedAt?: string;
 }
 
 export async function GET(request: Request) {
+  const guard = maybeRequireInternalApiKey(request);
+  if (guard) return guard;
+
   const url = new URL(request.url);
   const clientId = url.searchParams.get("clientId")?.trim();
   const limit = Number(url.searchParams.get("limit") ?? 20);
@@ -21,6 +25,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const guard = maybeRequireInternalApiKey(request);
+  if (guard) return guard;
+
   let body: AppendBody;
   try {
     body = (await request.json()) as AppendBody;
@@ -46,4 +53,3 @@ export async function POST(request: Request) {
   });
   return NextResponse.json({ ok: true });
 }
-

@@ -8,7 +8,6 @@ import { useTriageStore } from "@/hooks/useTriageStore";
 import { useScanRunner } from "@/hooks/useScanRunner";
 
 import Header from "./Header";
-import SettingsPanel from "./SettingsPanel";
 import ClientTabs from "./ClientTabs";
 import ClientForm from "./ClientForm";
 import EmptyState from "./EmptyState";
@@ -40,13 +39,11 @@ export default function Dashboard() {
     deleteClient,
     seedTriageMap,
     health,
-    refreshHealth,
     loaded,
     persistState,
   } = useClientStore();
 
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [showSettings, setShowSettings] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editClient, setEditClient] = useState<Client | null>(null);
   const [filter, setFilter] = useState<FilterKey>("active");
@@ -131,21 +128,9 @@ export default function Dashboard() {
     <div className="min-h-screen bg-slate-950">
       <Header
         dangerCount={dangerCount}
-        showSettings={showSettings}
-        onToggleSettings={() => setShowSettings((p) => !p)}
       />
 
       <div className="mx-auto max-w-7xl px-4 py-16">
-        {showSettings && (
-          <SettingsPanel
-            health={health}
-            onRefresh={async () => {
-              await refreshHealth();
-            }}
-            onClose={() => setShowSettings(false)}
-          />
-        )}
-
         <ClientTabs
           clients={clients}
           activeId={activeId}

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { logger } from "@/lib/server/logger";
 import { fetchAdsFromMeta, MetaApiError } from "@/lib/server/metaAds";
 import { getMetaToken } from "@/lib/server/metaTokenStore";
+import { maybeRequireInternalApiKey } from "@/lib/server/internalGuard";
 
 interface ScanRequestBody {
   q?: string;
@@ -18,6 +19,9 @@ function getErrorMessage(err: unknown): string {
 }
 
 export async function POST(request: Request) {
+  const guard = maybeRequireInternalApiKey(request);
+  if (guard) return guard;
+
   const token = await getMetaToken();
   if (!token) {
     return NextResponse.json(

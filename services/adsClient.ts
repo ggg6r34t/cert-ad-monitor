@@ -1,5 +1,6 @@
 import type { FetchAdsResult } from "@/types";
 import { generateDemoData } from "@/lib/demo-data";
+import { withInternalApiKey } from "@/services/internalApi";
 
 interface FetchAdsInput {
   query: string;
@@ -21,7 +22,7 @@ export async function fetchAds({
   try {
     const res = await fetch("/api/ads", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: withInternalApiKey({ "Content-Type": "application/json" }),
       body: JSON.stringify({ q: query, country, maxPages }),
     });
 
@@ -41,4 +42,3 @@ export async function fetchAds({
     return { ads: [], error: msg, isDemo: false };
   }
 }
-

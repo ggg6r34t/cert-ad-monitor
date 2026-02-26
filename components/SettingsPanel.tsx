@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { ExternalLink, RefreshCw, Settings, Play } from "lucide-react";
 
-interface HealthModel {
+export interface HealthModel {
   status: "ok" | "degraded";
   tokenConfigured: boolean;
   tokenSource: "env" | "stored" | "none";
@@ -273,7 +273,7 @@ export default function SettingsPanel({ health, onRefresh, onClose }: Props) {
 
       <div className="mt-4 rounded-lg border border-slate-700 bg-slate-800 p-3 text-xs text-slate-400">
         <p>
-          This internal tool reads API credentials from server storage. Browser token persistence has been removed for security.
+          Add and manage the Meta API token here so scans run with your team’s shared server configuration.
         </p>
         <p className="mt-2">If token source is <code>none</code>, add it via secure save below or env and refresh.</p>
         {health?.tokenStatusError && <p className="mt-2 text-amber-400">{health.tokenStatusError}</p>}

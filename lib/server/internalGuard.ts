@@ -15,3 +15,7 @@ export function requireInternalApiKey(request: Request): NextResponse | null {
   return null;
 }
 
+export function maybeRequireInternalApiKey(request: Request): NextResponse | null {
+  if (!process.env.INTERNAL_API_KEY) return null;
+  return requireInternalApiKey(request);
+}

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Client, TriageStatus } from "@/types";
+import { withInternalApiKey } from "@/services/internalApi";
 
 export interface HealthResponse {
   status: "ok" | "degraded";
@@ -105,7 +106,7 @@ export function useClientStore() {
 
       const res = await fetch("/api/state", {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: withInternalApiKey({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           clients: nextClients,
           triageMap: nextTriageMap,
@@ -122,7 +123,10 @@ export function useClientStore() {
         return;
       }
       if (res.status === 409) {
-        const latestRes = await fetch("/api/state", { cache: "no-store" });
+        const latestRes = await fetch("/api/state", {
+          cache: "no-store",
+          headers: withInternalApiKey(),
+        });
         if (latestRes.ok) {
           const latest = (await latestRes.json()) as PersistedStateResponse;
           applyServerState(latest);
@@ -139,6 +143,7 @@ export function useClientStore() {
       try {
         const [stateRes, healthRes] = await Promise.all([
           fetch("/api/state", { cache: "no-store" }),
+          // keep health endpoint publicly readable
           fetch("/api/health", { cache: "no-store" }),
         ]);
 
@@ -170,7 +175,7 @@ export function useClientStore() {
           if (legacyClients.length > 0 || Object.keys(legacyTriage).length > 0) {
             const res = await fetch("/api/state", {
               method: "PUT",
-              headers: { "Content-Type": "application/json" },
+              headers: withInternalApiKey({ "Content-Type": "application/json" }),
               body: JSON.stringify({ clients: legacyClients, triageMap: legacyTriage, version: 0 }),
             });
             if (res.ok) {

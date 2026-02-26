@@ -5,6 +5,7 @@ import type { Alert, Client, ScanResult } from "@/types";
 import { analyzeAd } from "@/lib/analysis";
 import { fetchAds } from "@/services/adsClient";
 import { buildClientQueries } from "@/lib/brandQueries";
+import { withInternalApiKey } from "@/services/internalApi";
 
 interface UseScanRunnerInput {
   clients: Client[];
@@ -98,7 +99,7 @@ export function useScanRunner({
         try {
           const historyRes = await fetch(
             `/api/scan-history?clientId=${encodeURIComponent(client.id)}&limit=1`,
-            { cache: "no-store" }
+            { cache: "no-store", headers: withInternalApiKey() }
           );
           if (historyRes.ok) {
             const payload = (await historyRes.json()) as {
@@ -141,7 +142,7 @@ export function useScanRunner({
         try {
           await fetch("/api/scan-history", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: withInternalApiKey({ "Content-Type": "application/json" }),
             body: JSON.stringify({
               clientId: client.id,
               clientName: client.name,

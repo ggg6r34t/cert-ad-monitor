@@ -1,14 +1,17 @@
 "use client";
 
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { ShieldAlert, Settings, Bell } from "lucide-react";
 
 interface Props {
   dangerCount: number;
-  showSettings: boolean;
-  onToggleSettings: () => void;
 }
 
-export default function Header({ dangerCount, showSettings, onToggleSettings }: Props) {
+export default function Header({ dangerCount }: Props) {
+  const pathname = usePathname();
+  const onSettingsPage = pathname === "/settings";
+
   return (
     <div className="bg-slate-900 border-b border-slate-800">
       <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
@@ -31,16 +34,16 @@ export default function Header({ dangerCount, showSettings, onToggleSettings }: 
               </span>
             </span>
           )}
-          <button
-            onClick={onToggleSettings}
+          <Link
+            href="/settings"
             className={`p-2 rounded-lg transition-colors ${
-              showSettings
+              onSettingsPage
                 ? "bg-slate-700 text-white"
                 : "text-slate-400 hover:text-white hover:bg-slate-800"
             }`}
           >
             <Settings size={18} />
-          </button>
+          </Link>
         </div>
       </div>
     </div>

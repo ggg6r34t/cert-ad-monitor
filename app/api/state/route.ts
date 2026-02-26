@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { logger } from "@/lib/server/logger";
 import { readState, StateConflictError, writeState } from "@/lib/server/stateStore";
 import type { Client, TriageStatus } from "@/types";
+import { maybeRequireInternalApiKey } from "@/lib/server/internalGuard";
 
 interface UpdateStateBody {
   clients?: Client[];
@@ -15,6 +16,9 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
+  const guard = maybeRequireInternalApiKey(request);
+  if (guard) return guard;
+
   try {
     const body = (await request.json()) as UpdateStateBody;
     const next = await writeState({

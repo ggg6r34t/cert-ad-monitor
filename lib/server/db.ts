@@ -17,9 +17,11 @@ function getPool(): Pool {
   if (!conn) {
     throw new Error("POSTGRES_URL or DATABASE_URL is not configured.");
   }
+  const disableTlsVerify = process.env.PG_DISABLE_TLS_VERIFY === "true";
+  const isLocal = conn.includes("localhost") || conn.includes("127.0.0.1");
   pool = new Pool({
     connectionString: conn,
-    ssl: conn.includes("localhost") ? undefined : { rejectUnauthorized: false },
+    ssl: isLocal ? undefined : { rejectUnauthorized: !disableTlsVerify },
     max: 5,
   });
   return pool;
@@ -79,6 +81,7 @@ async function initSchema(): Promise<void> {
 }
 
 async function ensureSchema(): Promise<void> {
+  if (process.env.DISABLE_RUNTIME_SCHEMA_INIT === "true") return;
   if (!schemaInitPromise) {
     schemaInitPromise = initSchema().catch((err) => {
       schemaInitPromise = null;

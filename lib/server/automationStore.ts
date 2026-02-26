@@ -207,6 +207,48 @@ export async function acquireAutomationRunLock(
   trigger: "manual" | "scheduled",
   staleAfterMs = 5 * 60 * 1000
 ): Promise<{ acquired: boolean; state: AutomationState }> {
+  if (isPostgresConfigured()) {
+    await dbQuery(
+      `
+      INSERT INTO cert_automation_state (id, clients, runs, lock, alert_policy, updated_at)
+      VALUES (1, '{}'::jsonb, '[]'::jsonb, NULL, $1::jsonb, NOW())
+      ON CONFLICT (id) DO NOTHING
+    `,
+      [JSON.stringify(EMPTY_STATE.alertPolicy)]
+    );
+
+    const nowIso = new Date().toISOString();
+    const lockObj = JSON.stringify({
+      ownerId,
+      trigger,
+      startedAt: nowIso,
+      heartbeatAt: nowIso,
+    });
+
+    const updated = await dbQuery(
+      `
+      UPDATE cert_automation_state
+      SET lock = $1::jsonb,
+          updated_at = NOW()
+      WHERE id = 1
+        AND (
+          lock IS NULL
+          OR lock->>'ownerId' = $2
+          OR ((lock->>'heartbeatAt')::timestamptz <= NOW() - ($3 * INTERVAL '1 millisecond'))
+        )
+      RETURNING id
+    `,
+      [lockObj, ownerId, staleAfterMs]
+    );
+
+    if (updated.rowCount && updated.rowCount > 0) {
+      const state = await readAutomationState();
+      return { acquired: true, state };
+    }
+    const state = await readAutomationState();
+    return { acquired: false, state };
+  }
+
   const state = await readAutomationState();
   const now = Date.now();
   const lockTs = state.lock?.heartbeatAt ? new Date(state.lock.heartbeatAt).getTime() : 0;
@@ -228,6 +270,21 @@ export async function acquireAutomationRunLock(
 }
 
 export async function heartbeatAutomationRunLock(ownerId: string): Promise<void> {
+  if (isPostgresConfigured()) {
+    await dbQuery(
+      `
+      UPDATE cert_automation_state
+      SET lock = jsonb_set(lock, '{heartbeatAt}', to_jsonb($1::text), true),
+          updated_at = NOW()
+      WHERE id = 1
+        AND lock IS NOT NULL
+        AND lock->>'ownerId' = $2
+    `,
+      [new Date().toISOString(), ownerId]
+    );
+    return;
+  }
+
   const state = await readAutomationState();
   if (!state.lock || state.lock.ownerId !== ownerId) return;
   await writeAutomationState({
@@ -240,6 +297,21 @@ export async function heartbeatAutomationRunLock(ownerId: string): Promise<void>
 }
 
 export async function releaseAutomationRunLock(ownerId: string): Promise<void> {
+  if (isPostgresConfigured()) {
+    await dbQuery(
+      `
+      UPDATE cert_automation_state
+      SET lock = NULL,
+          updated_at = NOW()
+      WHERE id = 1
+        AND lock IS NOT NULL
+        AND lock->>'ownerId' = $1
+    `,
+      [ownerId]
+    );
+    return;
+  }
+
   const state = await readAutomationState();
   if (!state.lock || state.lock.ownerId !== ownerId) return;
   await writeAutomationState({
