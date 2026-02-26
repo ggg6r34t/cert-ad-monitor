@@ -33,9 +33,9 @@ export default function Header({ dangerCount }: Props) {
         <div className="flex items-center gap-3">
           <Link
             href="/privacy"
-            className={`rounded-lg px-3 py-2 text-sm transition-colors ${
+            className={`rounded-lg px-3 py-2 text-xs transition-colors ${
               onPrivacyPage
-                ? "bg-slate-700 text-white"
+                ? "text-white"
                 : "text-slate-400 hover:bg-slate-800 hover:text-white"
             }`}
           >
