@@ -15,15 +15,19 @@ export default function Header({ dangerCount }: Props) {
   return (
     <div className="bg-slate-900 border-b border-slate-800">
       <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-red-600 rounded-lg">
-            <ShieldAlert size={20} className="text-white" />
+        <Link href="/" className="flex items-center gap-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-red-600 rounded-lg">
+              <ShieldAlert size={20} className="text-white" />
+            </div>
+            <div>
+              <h1 className="text-lg font-bold text-white">CERT Ad Monitor</h1>
+              <p className="text-xs text-slate-400">
+                Meta Ad Library Fraud Detection
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-lg font-bold text-white">CERT Ad Monitor</h1>
-            <p className="text-xs text-slate-400">Meta Ad Library Fraud Detection</p>
-          </div>
-        </div>
+        </Link>
 
         <div className="flex items-center gap-3">
           {dangerCount > 0 && (

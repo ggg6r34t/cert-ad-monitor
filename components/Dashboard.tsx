@@ -36,7 +36,6 @@ export default function Dashboard() {
   const {
     clients,
     saveClient,
-    deleteClient,
     seedTriageMap,
     health,
     loaded,
@@ -80,14 +79,12 @@ export default function Dashboard() {
   const activeClient = clients.find((c) => c.id === activeId) ?? null;
   const activeResult = activeId ? (results[activeId] ?? null) : null;
 
-  const onDeleteClient = (id: string) => {
-    deleteClient(id);
+  const onClearClientResults = (id: string) => {
     setResults((prev) => {
       const next = { ...prev };
       delete next[id];
       return next;
     });
-    if (activeId === id) setActiveId(null);
   };
 
   const filtered =
@@ -203,7 +200,9 @@ export default function Dashboard() {
                   Scan Now
                 </button>
                 <button
-                  onClick={() => onDeleteClient(activeClient.id)}
+                  onClick={() => onClearClientResults(activeClient.id)}
+                  title="Clear current scan results"
+                  aria-label="Clear current scan results"
                   className="rounded-lg border border-red-800 bg-slate-800 px-3 py-1.5 text-sm text-red-400 transition-colors hover:bg-red-900/30"
                 >
                   <Trash2 size={13} />
