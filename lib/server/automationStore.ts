@@ -1,5 +1,6 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { dbQuery, isPostgresConfigured } from "@/lib/server/db";
 
 export interface ClientAutomationState {
   lastRunAt: string;
@@ -72,6 +73,58 @@ async function ensureDir(): Promise<void> {
 }
 
 export async function readAutomationState(): Promise<AutomationState> {
+  if (isPostgresConfigured()) {
+    const result = await dbQuery<{
+      clients: Record<string, ClientAutomationState>;
+      runs: AutomationRunSnapshot[];
+      lock: AutomationRunLock | null;
+      alert_policy: AlertPolicy | null;
+      updated_at: string;
+    }>(
+      "SELECT clients, runs, lock, alert_policy, updated_at FROM cert_automation_state WHERE id = 1"
+    );
+    if (result.rows.length === 0) return EMPTY_STATE;
+    const parsed = result.rows[0];
+    return {
+      clients: parsed.clients ?? {},
+      runs: Array.isArray(parsed.runs) ? parsed.runs : [],
+      lock:
+        parsed.lock && typeof parsed.lock === "object"
+          ? {
+              ownerId: String(parsed.lock.ownerId ?? ""),
+              trigger: parsed.lock.trigger === "scheduled" ? "scheduled" : "manual",
+              startedAt: String(parsed.lock.startedAt ?? ""),
+              heartbeatAt: String(parsed.lock.heartbeatAt ?? ""),
+            }
+          : null,
+      alertPolicy: {
+        channels: {
+          slack: parsed.alert_policy?.channels?.slack !== false,
+          telegram: parsed.alert_policy?.channels?.telegram !== false,
+        },
+        minNewFlaggedForAlert: Math.max(
+          1,
+          Number(
+            parsed.alert_policy?.minNewFlaggedForAlert ??
+              EMPTY_STATE.alertPolicy!.minNewFlaggedForAlert
+          )
+        ),
+        quietHoursUtc: {
+          enabled: Boolean(parsed.alert_policy?.quietHoursUtc?.enabled),
+          startHour: Math.min(
+            23,
+            Math.max(0, Number(parsed.alert_policy?.quietHoursUtc?.startHour ?? 0))
+          ),
+          endHour: Math.min(
+            23,
+            Math.max(0, Number(parsed.alert_policy?.quietHoursUtc?.endHour ?? 6))
+          ),
+        },
+      },
+      updatedAt: parsed.updated_at ?? new Date().toISOString(),
+    };
+  }
+
   try {
     const raw = await fs.readFile(FILE, "utf8");
     const parsed = JSON.parse(raw) as AutomationState;
@@ -110,6 +163,28 @@ export async function readAutomationState(): Promise<AutomationState> {
 }
 
 export async function writeAutomationState(state: AutomationState): Promise<void> {
+  if (isPostgresConfigured()) {
+    await dbQuery(
+      `
+      INSERT INTO cert_automation_state (id, clients, runs, lock, alert_policy, updated_at)
+      VALUES (1, $1::jsonb, $2::jsonb, $3::jsonb, $4::jsonb, NOW())
+      ON CONFLICT (id) DO UPDATE
+      SET clients = EXCLUDED.clients,
+          runs = EXCLUDED.runs,
+          lock = EXCLUDED.lock,
+          alert_policy = EXCLUDED.alert_policy,
+          updated_at = NOW()
+    `,
+      [
+        JSON.stringify(state.clients ?? {}),
+        JSON.stringify(state.runs ?? []),
+        JSON.stringify(state.lock ?? null),
+        JSON.stringify(state.alertPolicy ?? null),
+      ]
+    );
+    return;
+  }
+
   await ensureDir();
   await fs.writeFile(
     FILE,

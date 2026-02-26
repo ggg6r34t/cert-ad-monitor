@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+import { dbQuery, isPostgresConfigured } from "@/lib/server/db";
 
 const DATA_DIR = process.env.APP_DATA_DIR
   ? path.resolve(process.env.APP_DATA_DIR)
@@ -64,6 +65,19 @@ function decryptToken(payload: EncryptedPayload, key: Buffer): string {
 async function readStoredToken(): Promise<string | null> {
   const key = getEncryptionKey();
   if (!key) return null;
+
+  if (isPostgresConfigured()) {
+    try {
+      const res = await dbQuery<{ payload: EncryptedPayload | null }>(
+        "SELECT payload FROM cert_meta_token WHERE id = 1"
+      );
+      if (res.rows.length === 0 || !res.rows[0].payload) return null;
+      return decryptToken(res.rows[0].payload, key);
+    } catch {
+      return null;
+    }
+  }
+
   try {
     const raw = await fs.readFile(FILE, "utf8");
     const payload = JSON.parse(raw) as EncryptedPayload;
@@ -106,16 +120,31 @@ export async function setStoredMetaToken(token: string): Promise<void> {
   if (!key) {
     throw new Error("APP_ENCRYPTION_KEY is missing or invalid.");
   }
-  await ensureDir();
   const payload = encryptToken(token.trim(), key);
+  if (isPostgresConfigured()) {
+    await dbQuery(
+      `
+      INSERT INTO cert_meta_token (id, payload, updated_at)
+      VALUES (1, $1::jsonb, NOW())
+      ON CONFLICT (id) DO UPDATE
+      SET payload = EXCLUDED.payload, updated_at = NOW()
+    `,
+      [JSON.stringify(payload)]
+    );
+    return;
+  }
+  await ensureDir();
   await fs.writeFile(FILE, JSON.stringify(payload, null, 2), "utf8");
 }
 
 export async function clearStoredMetaToken(): Promise<void> {
+  if (isPostgresConfigured()) {
+    await dbQuery("DELETE FROM cert_meta_token WHERE id = 1");
+    return;
+  }
   try {
     await fs.rm(FILE, { force: true });
   } catch {
     // ignore cleanup errors
   }
 }
-

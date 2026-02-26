@@ -1,5 +1,6 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { isPostgresConfigured, withDbClient } from "@/lib/server/db";
 
 const DATA_DIR = process.env.APP_DATA_DIR
   ? path.resolve(process.env.APP_DATA_DIR)
@@ -41,6 +42,53 @@ async function removeLeaseDir(): Promise<void> {
 }
 
 export async function ensureSchedulerLease(ownerId: string, leaseMs: number): Promise<boolean> {
+  if (isPostgresConfigured()) {
+    return withDbClient(async (client) => {
+      await client.query("BEGIN");
+      try {
+        const existing = await client.query<{
+          owner_id: string;
+          expires_at: string;
+        }>(
+          "SELECT owner_id, expires_at FROM cert_scheduler_lease WHERE key = 'global' FOR UPDATE"
+        );
+        const now = Date.now();
+        const nextExpiryIso = new Date(now + leaseMs).toISOString();
+        if (existing.rows.length === 0) {
+          await client.query(
+            `
+            INSERT INTO cert_scheduler_lease (key, owner_id, expires_at, updated_at)
+            VALUES ('global', $1, $2::timestamptz, NOW())
+          `,
+            [ownerId, nextExpiryIso]
+          );
+          await client.query("COMMIT");
+          return true;
+        }
+
+        const row = existing.rows[0];
+        const expiresTs = new Date(row.expires_at).getTime();
+        if (row.owner_id === ownerId || expiresTs <= now) {
+          await client.query(
+            `
+            UPDATE cert_scheduler_lease
+            SET owner_id = $1, expires_at = $2::timestamptz, updated_at = NOW()
+            WHERE key = 'global'
+          `,
+            [ownerId, nextExpiryIso]
+          );
+          await client.query("COMMIT");
+          return true;
+        }
+        await client.query("COMMIT");
+        return false;
+      } catch (err) {
+        await client.query("ROLLBACK");
+        throw err;
+      }
+    });
+  }
+
   await ensureDataDir();
 
   try {

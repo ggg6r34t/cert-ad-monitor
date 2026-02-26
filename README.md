@@ -42,6 +42,7 @@ See [`.env.example`](./.env.example).
 
 - `META_AD_LIBRARY_TOKEN`: token for Meta Ad Library API calls
 - `APP_ENCRYPTION_KEY`: 32-byte base64 key for encrypted server-side token storage
+- `POSTGRES_URL` (or `DATABASE_URL`): recommended production datastore on Vercel
 - `PORT` (optional): used in Docker and production runtime
 - `AUTO_SCAN_ENABLED`: set `true` to enable recurring scheduled scans
 - `AUTO_SCAN_INTERVAL_MINUTES`: scan interval (default `30`)
@@ -59,6 +60,13 @@ See [`.env.example`](./.env.example).
 The token is server-side only. Browser token entry/storage has been removed.
 If the token is missing, scans run in demo mode.
 You can now save token securely via Settings (encrypted at rest) if `APP_ENCRYPTION_KEY` is set.
+
+### Persistence backend selection
+
+- If `POSTGRES_URL`/`DATABASE_URL` is set: Postgres backend is used (production-ready for Vercel).
+- If not set: local file backend is used under `APP_DATA_DIR`/`./data` (for local Docker/dev).
+
+On Vercel, filesystem paths like `/var/task` are read-only, so Postgres is required for durable runtime state.
 
 ## Docker
 
