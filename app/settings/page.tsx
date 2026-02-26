@@ -15,12 +15,14 @@ import {
 } from "@/components/ui/select";
 
 export default function SettingsPage() {
+  const PAGE_SIZE = 5;
   const router = useRouter();
   const { clients, setClients, seedTriageMap, health, refreshHealth, loaded, persistState } = useClientStore();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [countryFilter, setCountryFilter] = useState("ALL_COUNTRIES");
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     void refreshHealth();
@@ -60,10 +62,26 @@ export default function SettingsPage() {
     });
   }, [clients, countryFilter, search]);
 
+  const totalPages = Math.max(1, Math.ceil(filteredClients.length / PAGE_SIZE));
+  const paginatedClients = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return filteredClients.slice(start, start + PAGE_SIZE);
+  }, [filteredClients, page]);
+
   const globalClients = useMemo(
     () => clients.filter((client) => client.country === "ALL").length,
     [clients]
   );
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, countryFilter]);
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
 
   return (
     <div className="min-h-screen bg-slate-950">
@@ -137,7 +155,7 @@ export default function SettingsPage() {
                 </p>
               </div>
             ) : (
-              filteredClients.map((client) => (
+              paginatedClients.map((client) => (
                 <div
                   key={client.id}
                   className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-3"
@@ -186,6 +204,34 @@ export default function SettingsPage() {
               ))
             )}
           </div>
+
+          {filteredClients.length > 0 && (
+            <div className="mt-4 flex items-center justify-between rounded-lg border border-slate-700 bg-slate-800 px-3 py-2">
+              <div className="text-xs text-slate-400">
+                Showing {(page - 1) * PAGE_SIZE + 1}-
+                {Math.min(page * PAGE_SIZE, filteredClients.length)} of {filteredClients.length}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                  className="rounded bg-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-slate-600 disabled:opacity-50"
+                >
+                  Previous
+                </button>
+                <span className="text-xs text-slate-400">
+                  Page {page} / {totalPages}
+                </span>
+                <button
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages}
+                  className="rounded bg-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-slate-600 disabled:opacity-50"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

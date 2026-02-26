@@ -13,6 +13,7 @@ export interface AutomationState {
   clients: Record<string, ClientAutomationState>;
   runs: AutomationRunSnapshot[];
   lock?: AutomationRunLock | null;
+  runtimeConfig: AutomationRuntimeConfig;
   alertPolicy?: AlertPolicy;
   updatedAt: string;
 }
@@ -47,15 +48,44 @@ export interface AlertPolicy {
   };
 }
 
+export interface AutomationRuntimeConfig {
+  enabled: boolean;
+  intervalMinutes: number;
+  maxPages: number;
+  maxQueries: number;
+}
+
 const DATA_DIR = process.env.APP_DATA_DIR
   ? path.resolve(process.env.APP_DATA_DIR)
   : path.join(process.cwd(), "data");
 const FILE = path.join(DATA_DIR, "automation-state.json");
 
+function defaultRuntimeConfig(): AutomationRuntimeConfig {
+  return {
+    enabled: process.env.AUTO_SCAN_ENABLED === "true",
+    intervalMinutes: Math.max(1, Number(process.env.AUTO_SCAN_INTERVAL_MINUTES ?? 30)),
+    maxPages: Math.max(1, Number(process.env.AUTO_SCAN_MAX_PAGES ?? 3)),
+    maxQueries: Math.max(1, Number(process.env.AUTO_SCAN_MAX_QUERIES ?? 8)),
+  };
+}
+
+function sanitizeRuntimeConfig(input: unknown): AutomationRuntimeConfig {
+  const fallback = defaultRuntimeConfig();
+  if (!input || typeof input !== "object") return fallback;
+  const raw = input as Partial<AutomationRuntimeConfig>;
+  return {
+    enabled: typeof raw.enabled === "boolean" ? raw.enabled : fallback.enabled,
+    intervalMinutes: Math.min(360, Math.max(1, Number(raw.intervalMinutes ?? fallback.intervalMinutes))),
+    maxPages: Math.min(10, Math.max(1, Number(raw.maxPages ?? fallback.maxPages))),
+    maxQueries: Math.min(25, Math.max(1, Number(raw.maxQueries ?? fallback.maxQueries))),
+  };
+}
+
 const EMPTY_STATE: AutomationState = {
   clients: {},
   runs: [],
   lock: null,
+  runtimeConfig: defaultRuntimeConfig(),
   alertPolicy: {
     channels: { slack: true, telegram: true },
     minNewFlaggedForAlert: 1,
@@ -121,6 +151,11 @@ export async function readAutomationState(): Promise<AutomationState> {
           ),
         },
       },
+      runtimeConfig: sanitizeRuntimeConfig(
+        parsed.alert_policy && typeof parsed.alert_policy === "object"
+          ? (parsed.alert_policy as unknown as Record<string, unknown>).runtimeConfig
+          : null
+      ),
       updatedAt: parsed.updated_at ?? new Date().toISOString(),
     };
   }
@@ -155,6 +190,12 @@ export async function readAutomationState(): Promise<AutomationState> {
           endHour: Math.min(23, Math.max(0, Number(parsed.alertPolicy?.quietHoursUtc?.endHour ?? 6))),
         },
       },
+      runtimeConfig: sanitizeRuntimeConfig(
+        parsed.runtimeConfig ??
+          (parsed.alertPolicy && typeof parsed.alertPolicy === "object"
+            ? (parsed.alertPolicy as unknown as Record<string, unknown>).runtimeConfig
+            : null)
+      ),
       updatedAt: parsed.updatedAt ?? new Date().toISOString(),
     };
   } catch {
@@ -164,6 +205,10 @@ export async function readAutomationState(): Promise<AutomationState> {
 
 export async function writeAutomationState(state: AutomationState): Promise<void> {
   if (isPostgresConfigured()) {
+    const policyPayload = {
+      ...(state.alertPolicy ?? null),
+      runtimeConfig: sanitizeRuntimeConfig(state.runtimeConfig),
+    };
     await dbQuery(
       `
       INSERT INTO cert_automation_state (id, clients, runs, lock, alert_policy, updated_at)
@@ -179,7 +224,7 @@ export async function writeAutomationState(state: AutomationState): Promise<void
         JSON.stringify(state.clients ?? {}),
         JSON.stringify(state.runs ?? []),
         JSON.stringify(state.lock ?? null),
-        JSON.stringify(state.alertPolicy ?? null),
+        JSON.stringify(policyPayload),
       ]
     );
     return;

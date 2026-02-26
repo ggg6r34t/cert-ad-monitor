@@ -20,6 +20,8 @@ export interface MetaTokenStatus {
   configured: boolean;
   source: "env" | "stored" | "none";
   storageReady: boolean;
+  envConfigured?: boolean;
+  storedConfigured?: boolean;
   error?: string;
 }
 
@@ -87,31 +89,47 @@ async function readStoredToken(): Promise<string | null> {
   }
 }
 
-export async function getMetaToken(): Promise<string | null> {
+export async function getMetaToken(preferredToken?: string | null): Promise<string | null> {
+  const preferred = preferredToken?.trim();
+  if (preferred) return preferred;
+
+  const stored = await readStoredToken();
+  if (stored) return stored;
+
   const envToken = process.env.META_AD_LIBRARY_TOKEN?.trim();
-  if (envToken) return envToken;
-  return readStoredToken();
+  return envToken || null;
 }
 
 export async function getMetaTokenStatus(): Promise<MetaTokenStatus> {
   const envToken = process.env.META_AD_LIBRARY_TOKEN?.trim();
-  if (envToken) {
-    return { configured: true, source: "env", storageReady: Boolean(getEncryptionKey()) };
-  }
+  const hasEnv = Boolean(envToken);
   const key = getEncryptionKey();
   if (!key) {
     return {
-      configured: false,
-      source: "none",
+      configured: hasEnv,
+      source: hasEnv ? "env" : "none",
       storageReady: false,
+      envConfigured: hasEnv,
+      storedConfigured: false,
       error: "APP_ENCRYPTION_KEY is missing or invalid (needs base64 32-byte key).",
     };
   }
   const stored = await readStoredToken();
+  if (stored) {
+    return {
+      configured: true,
+      source: "stored",
+      storageReady: true,
+      envConfigured: hasEnv,
+      storedConfigured: true,
+    };
+  }
   return {
-    configured: Boolean(stored),
-    source: stored ? "stored" : "none",
+    configured: hasEnv,
+    source: hasEnv ? "env" : "none",
     storageReady: true,
+    envConfigured: hasEnv,
+    storedConfigured: false,
   };
 }
 

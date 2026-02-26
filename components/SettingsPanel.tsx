@@ -2,6 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { ExternalLink, RefreshCw, Settings, Play } from "lucide-react";
+import {
+  getUserMetaTokenOverride,
+  setUserMetaTokenOverride,
+} from "@/services/userMetaToken";
 
 export interface HealthModel {
   status: "ok" | "degraded";
@@ -68,6 +72,13 @@ interface AutomationStatusResponse {
       endHour: number;
     };
   };
+  runtimeConfig?: {
+    enabled: boolean;
+    intervalMinutes: number;
+    maxPages: number;
+    maxQueries: number;
+  };
+  schedulerAllowedByEnv?: boolean;
 }
 
 interface Props {
@@ -81,11 +92,15 @@ export default function SettingsPanel({ health, onRefresh, onClose }: Props) {
   const [tokenInput, setTokenInput] = useState("");
   const [tokenBusy, setTokenBusy] = useState(false);
   const [tokenMessage, setTokenMessage] = useState<string | null>(null);
+  const [userTokenInput, setUserTokenInput] = useState("");
+  const [userTokenMessage, setUserTokenMessage] = useState<string | null>(null);
   const [runBusy, setRunBusy] = useState(false);
   const [runMessage, setRunMessage] = useState<string | null>(null);
   const [automationStatus, setAutomationStatus] = useState<AutomationStatusResponse | null>(null);
   const [policyBusy, setPolicyBusy] = useState(false);
   const [policyMessage, setPolicyMessage] = useState<string | null>(null);
+  const [runtimeBusy, setRuntimeBusy] = useState(false);
+  const [runtimeMessage, setRuntimeMessage] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -94,6 +109,7 @@ export default function SettingsPanel({ health, onRefresh, onClose }: Props) {
     } catch {
       setInternalKey("");
     }
+    setUserTokenInput(getUserMetaTokenOverride());
   }, []);
 
   useEffect(() => {
@@ -232,6 +248,49 @@ export default function SettingsPanel({ health, onRefresh, onClose }: Props) {
     }
   };
 
+  const saveRuntimeConfig = async () => {
+    if (!automationStatus?.runtimeConfig) return;
+    setRuntimeBusy(true);
+    setRuntimeMessage(null);
+    try {
+      const res = await fetch("/api/automation/runtime", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "x-internal-api-key": internalKey,
+        },
+        body: JSON.stringify(automationStatus.runtimeConfig),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setRuntimeMessage(data.error ?? `Runtime config save failed (${res.status})`);
+      } else {
+        setRuntimeMessage("Scheduler runtime overrides saved.");
+      }
+      await refreshEverything();
+    } catch (err) {
+      setRuntimeMessage(err instanceof Error ? err.message : "Runtime config save request failed");
+    } finally {
+      setRuntimeBusy(false);
+    }
+  };
+
+  const saveUserTokenOverride = () => {
+    const trimmed = userTokenInput.trim();
+    if (!trimmed) {
+      setUserTokenMessage("Enter a token or clear the override.");
+      return;
+    }
+    setUserMetaTokenOverride(trimmed);
+    setUserTokenMessage("Personal scan token saved for this browser session.");
+  };
+
+  const clearUserTokenOverride = () => {
+    setUserMetaTokenOverride("");
+    setUserTokenInput("");
+    setUserTokenMessage("Personal override cleared. Shared server token will be used.");
+  };
+
   return (
     <div className="mb-6 rounded-xl border border-slate-700 bg-slate-900 p-5">
       <h2 className="mb-3 flex items-center gap-2 text-lg font-bold text-white">
@@ -275,6 +334,9 @@ export default function SettingsPanel({ health, onRefresh, onClose }: Props) {
         <p>
           Add and manage the Meta API token here so scans run with your team’s shared server configuration.
         </p>
+        <p className="mt-2">
+          If both env and stored token exist, stored token is used as the shared default.
+        </p>
         <p className="mt-2">If token source is <code>none</code>, add it via secure save below or env and refresh.</p>
         {health?.tokenStatusError && <p className="mt-2 text-amber-400">{health.tokenStatusError}</p>}
         <a
@@ -298,6 +360,117 @@ export default function SettingsPanel({ health, onRefresh, onClose }: Props) {
           className="mt-1 w-full rounded border border-slate-600 bg-slate-900 px-2 py-1.5 text-xs text-slate-200"
         />
       </div>
+
+      {automationStatus?.runtimeConfig && (
+        <div className="mt-4 rounded-lg border border-slate-700 bg-slate-800 p-3">
+          <div className="text-xs uppercase tracking-wide text-slate-500">Scheduler Runtime Overrides</div>
+          {!automationStatus.schedulerAllowedByEnv && (
+            <p className="mt-2 text-xs text-amber-400">
+              AUTO_SCAN_ENABLED is false in env. Scheduler cannot be enabled until env allows it.
+            </p>
+          )}
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <label className="flex items-center gap-2 text-xs text-slate-300">
+              <input
+                type="checkbox"
+                checked={automationStatus.runtimeConfig.enabled}
+                onChange={(e) =>
+                  setAutomationStatus((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          runtimeConfig: { ...prev.runtimeConfig!, enabled: e.target.checked },
+                        }
+                      : prev
+                  )
+                }
+              />
+              Enable scheduled scans
+            </label>
+          </div>
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            <label className="text-xs text-slate-400">
+              Interval (minutes)
+              <input
+                type="number"
+                min={1}
+                max={360}
+                value={automationStatus.runtimeConfig.intervalMinutes}
+                onChange={(e) =>
+                  setAutomationStatus((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          runtimeConfig: {
+                            ...prev.runtimeConfig!,
+                            intervalMinutes: Math.min(360, Math.max(1, Number(e.target.value || 1))),
+                          },
+                        }
+                      : prev
+                  )
+                }
+                className="mt-1 w-full rounded border border-slate-600 bg-slate-900 px-2 py-1 text-xs text-slate-200"
+              />
+            </label>
+            <label className="text-xs text-slate-400">
+              Max pages per query
+              <input
+                type="number"
+                min={1}
+                max={10}
+                value={automationStatus.runtimeConfig.maxPages}
+                onChange={(e) =>
+                  setAutomationStatus((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          runtimeConfig: {
+                            ...prev.runtimeConfig!,
+                            maxPages: Math.min(10, Math.max(1, Number(e.target.value || 1))),
+                          },
+                        }
+                      : prev
+                  )
+                }
+                className="mt-1 w-full rounded border border-slate-600 bg-slate-900 px-2 py-1 text-xs text-slate-200"
+              />
+            </label>
+            <label className="text-xs text-slate-400">
+              Max queries per client
+              <input
+                type="number"
+                min={1}
+                max={25}
+                value={automationStatus.runtimeConfig.maxQueries}
+                onChange={(e) =>
+                  setAutomationStatus((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          runtimeConfig: {
+                            ...prev.runtimeConfig!,
+                            maxQueries: Math.min(25, Math.max(1, Number(e.target.value || 1))),
+                          },
+                        }
+                      : prev
+                  )
+                }
+                className="mt-1 w-full rounded border border-slate-600 bg-slate-900 px-2 py-1 text-xs text-slate-200"
+              />
+            </label>
+          </div>
+          <div className="mt-3">
+            <button
+              onClick={() => void saveRuntimeConfig()}
+              disabled={!internalKey || runtimeBusy}
+              className="rounded bg-cyan-700 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+            >
+              {runtimeBusy ? "Saving..." : "Save Runtime Overrides"}
+            </button>
+            {runtimeMessage && <p className="mt-2 text-xs text-slate-300">{runtimeMessage}</p>}
+          </div>
+        </div>
+      )}
 
       <div className="mt-4 rounded-lg border border-slate-700 bg-slate-800 p-3">
         <div className="text-xs uppercase tracking-wide text-slate-500">Meta Token (Secure Server Storage)</div>
@@ -325,6 +498,35 @@ export default function SettingsPanel({ health, onRefresh, onClose }: Props) {
           </button>
         </div>
         {tokenMessage && <p className="mt-2 text-xs text-slate-300">{tokenMessage}</p>}
+      </div>
+
+      <div className="mt-4 rounded-lg border border-slate-700 bg-slate-800 p-3">
+        <div className="text-xs uppercase tracking-wide text-slate-500">My Personal Scan Token (Browser Session)</div>
+        <p className="mt-1 text-xs text-slate-400">
+          Use this to run manual scans with your own token without changing the team default.
+        </p>
+        <input
+          type="password"
+          value={userTokenInput}
+          onChange={(e) => setUserTokenInput(e.target.value)}
+          placeholder="Optional personal override token"
+          className="mt-2 w-full rounded border border-slate-600 bg-slate-900 px-2 py-1.5 text-xs text-slate-200"
+        />
+        <div className="mt-2 flex items-center gap-2">
+          <button
+            onClick={saveUserTokenOverride}
+            className="rounded bg-violet-700 px-3 py-1.5 text-xs font-semibold text-white"
+          >
+            Save My Override
+          </button>
+          <button
+            onClick={clearUserTokenOverride}
+            className="rounded bg-slate-700 px-3 py-1.5 text-xs font-semibold text-white"
+          >
+            Clear My Override
+          </button>
+        </div>
+        {userTokenMessage && <p className="mt-2 text-xs text-slate-300">{userTokenMessage}</p>}
       </div>
 
       <div className="mt-4 rounded-lg border border-slate-700 bg-slate-800 p-3">

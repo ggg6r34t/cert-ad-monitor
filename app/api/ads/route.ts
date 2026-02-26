@@ -22,7 +22,8 @@ export async function POST(request: Request) {
   const guard = maybeRequireInternalApiKey(request);
   if (guard) return guard;
 
-  const token = await getMetaToken();
+  const overrideToken = request.headers.get("x-meta-token-override");
+  const token = await getMetaToken(overrideToken);
   if (!token) {
     return NextResponse.json(
       { error: "Server token is not configured. Set META_AD_LIBRARY_TOKEN in environment." },

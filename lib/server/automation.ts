@@ -13,6 +13,7 @@ import {
   type AlertPolicy,
   type AutomationState,
   type ClientAutomationState,
+  type AutomationRuntimeConfig,
 } from "@/lib/server/automationStore";
 import { readState } from "@/lib/server/stateStore";
 import { scanQueue } from "@/lib/server/scanQueue";
@@ -66,6 +67,26 @@ const runtime: RuntimeState = {
 const LEASE_MS = 90_000;
 const LEASE_RENEW_MS = 20_000;
 
+function envRuntimeConfig(): AutomationRuntimeConfig {
+  return {
+    enabled: process.env.AUTO_SCAN_ENABLED === "true",
+    intervalMinutes: Math.max(1, Number(process.env.AUTO_SCAN_INTERVAL_MINUTES ?? DEFAULT_INTERVAL_MINUTES)),
+    maxPages: Math.max(1, Number(process.env.AUTO_SCAN_MAX_PAGES ?? DEFAULT_MAX_PAGES)),
+    maxQueries: Math.max(1, Number(process.env.AUTO_SCAN_MAX_QUERIES ?? DEFAULT_MAX_QUERIES)),
+  };
+}
+
+function effectiveRuntimeConfig(state?: AutomationState): AutomationRuntimeConfig {
+  const env = envRuntimeConfig();
+  const raw = state?.runtimeConfig;
+  return {
+    enabled: env.enabled && Boolean(raw?.enabled ?? env.enabled),
+    intervalMinutes: Math.min(360, Math.max(1, Number(raw?.intervalMinutes ?? env.intervalMinutes))),
+    maxPages: Math.min(10, Math.max(1, Number(raw?.maxPages ?? env.maxPages))),
+    maxQueries: Math.min(25, Math.max(1, Number(raw?.maxQueries ?? env.maxQueries))),
+  };
+}
+
 function startRunTimer(): void {
   if (runtime.timerId) return;
   runtime.timerId = setInterval(() => {
@@ -95,18 +116,23 @@ function unique<T>(arr: T[]): T[] {
   return Array.from(new Set(arr));
 }
 
-async function runClientScan(client: Client, token: string, state: AutomationState): Promise<ClientRunResult> {
+async function runClientScan(
+  client: Client,
+  token: string,
+  state: AutomationState,
+  runtimeConfig: AutomationRuntimeConfig
+): Promise<ClientRunResult> {
   const queries = buildClientQueries(
     client.name,
     client.brandTerms,
-    Number(process.env.AUTO_SCAN_MAX_QUERIES ?? DEFAULT_MAX_QUERIES)
+    runtimeConfig.maxQueries
   );
   const dedup = new Map<string, MetaAd>();
   for (const query of queries) {
     const result = await fetchAdsFromMeta({
       query,
       country: client.country,
-      maxPages: Number(process.env.AUTO_SCAN_MAX_PAGES ?? DEFAULT_MAX_PAGES),
+      maxPages: runtimeConfig.maxPages,
       token,
     });
     for (const ad of toMetaAds(result.ads)) {
@@ -212,13 +238,14 @@ export async function runAutomationCycle(trigger: "manual" | "scheduled" = "manu
     }
 
     const automationState = await readAutomationState();
+    const runtimeConfig = effectiveRuntimeConfig(automationState);
     const outputs: ClientRunResult[] = [];
     const errors: string[] = [];
     for (const client of clients) {
       try {
         await heartbeatAutomationRunLock(runtime.ownerId);
         const output = await scanQueue.enqueue(
-          () => runClientScan(client, token, automationState),
+          () => runClientScan(client, token, automationState, runtimeConfig),
           trigger === "manual" ? "high" : "normal"
         );
         outputs.push(output);
@@ -272,23 +299,36 @@ export async function runAutomationCycle(trigger: "manual" | "scheduled" = "manu
 }
 
 export function startAutomationScheduler(): void {
-  const enabled = process.env.AUTO_SCAN_ENABLED === "true";
-  if (!enabled) return;
-
-  const intervalMinutes = Math.max(
-    1,
-    Number(process.env.AUTO_SCAN_INTERVAL_MINUTES ?? DEFAULT_INTERVAL_MINUTES)
-  );
-  runtime.intervalMinutes = intervalMinutes;
+  if (!envRuntimeConfig().enabled) return;
 
   if (runtime.leaseTimerId) return;
 
   const tick = async () => {
+    const state = await readAutomationState();
+    const runtimeConfig = effectiveRuntimeConfig(state);
+    if (runtime.intervalMinutes !== runtimeConfig.intervalMinutes) {
+      runtime.intervalMinutes = runtimeConfig.intervalMinutes;
+      if (runtime.leader) {
+        stopRunTimer();
+        startRunTimer();
+      }
+    }
+    if (!runtimeConfig.enabled) {
+      if (runtime.leader) {
+        runtime.leader = false;
+        stopRunTimer();
+        logger.warn("Automation scheduler disabled by runtime override", { ownerId: runtime.ownerId });
+      }
+      return;
+    }
     const hasLease = await ensureSchedulerLease(runtime.ownerId, LEASE_MS);
     if (hasLease && !runtime.leader) {
       runtime.leader = true;
       startRunTimer();
-      logger.info("Automation node became leader", { ownerId: runtime.ownerId, intervalMinutes });
+      logger.info("Automation node became leader", {
+        ownerId: runtime.ownerId,
+        intervalMinutes: runtime.intervalMinutes,
+      });
       setTimeout(() => {
         if (runtime.leader) void runAutomationCycle("scheduled");
       }, 10_000);
@@ -308,17 +348,20 @@ export function startAutomationScheduler(): void {
 
   logger.info("Automation scheduler lease loop started", {
     ownerId: runtime.ownerId,
-    intervalMinutes,
+    intervalMinutes: runtime.intervalMinutes,
     leaseRenewMs: LEASE_RENEW_MS,
   });
 }
 
-export function getAutomationRuntimeStatus(): {
+export function getAutomationRuntimeStatus(state?: AutomationState): {
   enabled: boolean;
   leader: boolean;
   ownerId: string;
   running: boolean;
   intervalMinutes: number;
+  maxPages: number;
+  maxQueries: number;
+  schedulerAllowedByEnv: boolean;
   queueSize: number;
   queue: {
     concurrency: number;
@@ -329,12 +372,16 @@ export function getAutomationRuntimeStatus(): {
   };
   lastRun: AutomationRunResult | null;
 } {
+  const config = effectiveRuntimeConfig(state);
   return {
-    enabled: process.env.AUTO_SCAN_ENABLED === "true",
+    enabled: config.enabled,
     leader: runtime.leader,
     ownerId: runtime.ownerId,
     running: runtime.running,
-    intervalMinutes: runtime.intervalMinutes,
+    intervalMinutes: config.intervalMinutes,
+    maxPages: config.maxPages,
+    maxQueries: config.maxQueries,
+    schedulerAllowedByEnv: envRuntimeConfig().enabled,
     queueSize: scanQueue.size,
     queue: scanQueue.status,
     lastRun: runtime.lastRun,

@@ -1,6 +1,7 @@
 import type { FetchAdsResult } from "@/types";
 import { generateDemoData } from "@/lib/demo-data";
 import { withInternalApiKey } from "@/services/internalApi";
+import { getUserMetaTokenOverride } from "@/services/userMetaToken";
 
 interface FetchAdsInput {
   query: string;
@@ -20,9 +21,13 @@ export async function fetchAds({
   }
 
   try {
+    const userToken = getUserMetaTokenOverride();
     const res = await fetch("/api/ads", {
       method: "POST",
-      headers: withInternalApiKey({ "Content-Type": "application/json" }),
+      headers: withInternalApiKey({
+        "Content-Type": "application/json",
+        ...(userToken ? { "x-meta-token-override": userToken } : {}),
+      }),
       body: JSON.stringify({ q: query, country, maxPages }),
     });
 
